@@ -51,7 +51,7 @@ jobs:
           fi
 
       - name: Implementation Agent
-        uses: cagataycali/strands-github-agent@main
+        uses: jsamuel1/strands-github-agent@main
         with:
           task: |
             Implement the approved design specification: ${{ steps.spec_info.outputs.spec_file }}

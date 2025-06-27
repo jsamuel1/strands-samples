@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Code Review Agent
-        uses: cagataycali/strands-github-agent@main
+        uses: jsamuel1/strands-github-agent@main
         with:
           task: |
             Perform comprehensive code review for PR #${{ github.event.pull_request.number }}
@@ -148,7 +148,7 @@ jobs:
           fetch-depth: 0
 
       - name: Security Analysis Agent
-        uses: cagataycali/strands-github-agent@main
+        uses: jsamuel1/strands-github-agent@main
         with:
           task: |
             Perform security analysis on PR #${{ github.event.pull_request.number }}
