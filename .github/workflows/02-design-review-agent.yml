@@ -1,0 +1,96 @@
+# Design Review Agent - Reviews design specifications in PRs
+name: Design Review Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths: ['specs/**']
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  design-review:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'pull_request' && 
+       github.event.pull_request.draft == false) ||
+      (github.event_name == 'pull_request_review' && 
+       github.event.review.state == 'changes_requested')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Design Review Agent
+        uses: cagataycali/strands-github-agent@main
+        with:
+          task: |
+            Review design specification in PR #${{ github.event.pull_request.number }}
+            
+            Your role: Senior Design Reviewer & Technical Lead
+            
+            Review Tasks:
+            1. Analyze the design specification for completeness and quality
+            2. Validate technical feasibility and architecture decisions
+            3. Check security and compliance requirements
+            4. Assess resource requirements and timeline estimates
+            5. Verify alignment with project standards and best practices
+            6. Provide detailed feedback and recommendations
+            
+            Review Criteria:
+            - Requirements completeness and clarity
+            - Technical architecture soundness
+            - Security and privacy considerations
+            - Scalability and performance implications
+            - Maintainability and code quality standards
+            - Integration complexity and risks
+            - Resource allocation and timeline realism
+            - Compliance with organizational standards
+            
+            PR Details:
+            Title: ${{ github.event.pull_request.title }}
+            Author: ${{ github.event.pull_request.user.login }}
+            Files Changed: ${{ github.event.pull_request.changed_files }}
+            
+            Decision Options:
+            - APPROVE: Design is ready for implementation
+            - REQUEST_CHANGES: Design needs modifications (provide specific feedback)
+            - COMMENT: Design needs discussion but no blocking issues
+          
+          system_prompt: |
+            You are a senior technical reviewer with expertise in:
+            - System architecture and design patterns
+            - Security and compliance frameworks
+            - Performance and scalability engineering
+            - Risk assessment and mitigation
+            - Code quality and maintainability standards
+            
+            Your review philosophy:
+            - Be thorough but constructive
+            - Focus on preventing issues rather than just finding them
+            - Consider long-term maintainability and evolution
+            - Balance perfectionism with practical delivery needs
+            - Provide actionable feedback with specific recommendations
+            
+            Approval criteria:
+            - All requirements are clearly defined and testable
+            - Architecture is sound and follows best practices
+            - Security considerations are adequately addressed
+            - Implementation approach is feasible and well-planned
+            - Risks are identified with appropriate mitigation strategies
+          
+          tools: "file_read,use_github,add_comment,get_pull_request,get_pull_request_files,create_and_submit_pull_request_review,current_time,think"
+          
+          provider: "bedrock"
+          model: "us.anthropic.claude-opus-4-20250514-v1:0"
+          max_tokens: "32768"
+          
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

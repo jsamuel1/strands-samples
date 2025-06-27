@@ -1,0 +1,88 @@
+# Design Agent - Handles issues and creates design specifications
+name: Design Agent
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  design:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'issues' && 
+       (github.event.action == 'opened' || 
+        (github.event.action == 'labeled' && contains(github.event.label.name, 'needs-design')))) ||
+      (github.event_name == 'issue_comment' && 
+       contains(github.event.comment.body, '@design-agent'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Design Agent
+        uses: cagataycali/strands-github-agent@main
+        with:
+          task: |
+            Analyze issue #${{ github.event.issue.number }}: "${{ github.event.issue.title }}"
+            
+            Your role: Solution Design Architect
+            
+            Tasks:
+            1. Analyze the issue requirements thoroughly
+            2. Create a comprehensive design specification
+            3. Save the specification to specs/${{ github.event.issue.number }}-${{ github.event.issue.title }}.md
+            4. Create a pull request with the design specification
+            5. Add appropriate labels and assign reviewers
+            
+            Design specification should include:
+            - Problem statement and requirements analysis
+            - Proposed solution architecture
+            - Technical implementation approach
+            - Security and compliance considerations
+            - Testing strategy
+            - Risk assessment and mitigation
+            - Resource requirements and timeline
+            
+            Issue Details:
+            Title: ${{ github.event.issue.title }}
+            Body: ${{ github.event.issue.body }}
+            Labels: ${{ join(github.event.issue.labels.*.name, ', ') }}
+            Author: ${{ github.event.issue.user.login }}
+          
+          system_prompt: |
+            You are a senior solution architect responsible for creating comprehensive design specifications.
+            
+            Your expertise includes:
+            - Requirements analysis and stakeholder management
+            - System architecture and design patterns
+            - Security and compliance best practices
+            - Risk assessment and mitigation strategies
+            - Technical feasibility analysis
+            
+            Always consider:
+            - Scalability and performance implications
+            - Security vulnerabilities and mitigation
+            - Maintainability and code quality
+            - Integration with existing systems
+            - Resource constraints and timeline feasibility
+            
+            Create specifications that are detailed enough for implementation
+            but flexible enough to allow for technical creativity.
+          
+          tools: "file_read,file_write,use_github,add_comment,list_issues,current_time,think"
+          
+          provider: "bedrock"
+          model: "us.anthropic.claude-sonnet-4-20250514-v1:0"
+          max_tokens: "32768"
+          
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

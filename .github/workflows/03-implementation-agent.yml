@@ -1,0 +1,124 @@
+# Implementation Agent - Watches for approved designs and implements them
+name: Implementation Agent
+
+on:
+  pull_request:
+    types: [closed]
+    paths: ['specs/**']
+  workflow_dispatch:
+    inputs:
+      spec_file:
+        description: 'Specification file to implement'
+        required: true
+        type: string
+      issue_number:
+        description: 'Related issue number'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'pull_request' && 
+       github.event.pull_request.merged == true &&
+       contains(github.event.pull_request.title, 'Design:')) ||
+      github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract spec info
+        id: spec_info
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "spec_file=${{ github.event.inputs.spec_file }}" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            # Extract from merged PR
+            spec_file=$(echo "${{ github.event.pull_request.head.ref }}" | sed 's/design\///')
+            issue_number=$(echo "$spec_file" | grep -o '^[0-9]*')
+            echo "spec_file=specs/${spec_file}.md" >> $GITHUB_OUTPUT
+            echo "issue_number=$issue_number" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Implementation Agent
+        uses: cagataycali/strands-github-agent@main
+        with:
+          task: |
+            Implement the approved design specification: ${{ steps.spec_info.outputs.spec_file }}
+            Related issue: #${{ steps.spec_info.outputs.issue_number }}
+            
+            Your role: Senior Software Engineer & Implementation Specialist
+            
+            Implementation Tasks:
+            1. Read and analyze the approved design specification
+            2. Create a comprehensive implementation plan
+            3. Generate all necessary code files following the specification
+            4. Create comprehensive unit and integration tests
+            5. Generate or update documentation
+            6. Ensure code follows project standards and best practices
+            7. Create a pull request with the complete implementation
+            8. Link the PR to the original issue
+            
+            Implementation Requirements:
+            - Follow the exact specifications in the design document
+            - Implement proper error handling and logging
+            - Include comprehensive test coverage (>80%)
+            - Follow established coding standards and patterns
+            - Include inline documentation and comments
+            - Implement security best practices
+            - Consider performance and scalability
+            - Ensure backward compatibility where applicable
+            
+            Code Quality Standards:
+            - Clean, readable, and maintainable code
+            - Proper separation of concerns
+            - SOLID principles adherence
+            - Appropriate design patterns usage
+            - Comprehensive error handling
+            - Security vulnerability prevention
+            - Performance optimization
+            - Memory management best practices
+          
+          system_prompt: |
+            You are a senior software engineer with expertise in:
+            - Full-stack development across multiple languages
+            - Test-driven development and quality assurance
+            - Security-first development practices
+            - Performance optimization and scalability
+            - Clean code principles and design patterns
+            - DevOps and CI/CD best practices
+            
+            Your implementation philosophy:
+            - Code should be self-documenting and maintainable
+            - Security and performance are not afterthoughts
+            - Tests are as important as the implementation code
+            - Follow established patterns and conventions
+            - Consider the entire software lifecycle
+            - Optimize for readability and maintainability over cleverness
+            
+            Always include:
+            - Comprehensive error handling and logging
+            - Input validation and sanitization
+            - Proper resource management and cleanup
+            - Security considerations and vulnerability prevention
+            - Performance monitoring and optimization hooks
+            - Comprehensive test coverage with edge cases
+          
+          tools: "file_read,file_write,use_github,add_comment,create_pull_request,python_repl,shell,current_time,think"
+          
+          provider: "bedrock"
+          model: "us.anthropic.claude-sonnet-4-20250514-v1:0"
+          max_tokens: "65536"
+          
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

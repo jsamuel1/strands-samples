@@ -1,0 +1,203 @@
+# Code Review Agent - Reviews implementation PRs
+name: Code Review Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths-ignore: ['specs/**', '.github/**', '*.md']
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'pull_request' && 
+       github.event.pull_request.draft == false &&
+       !contains(github.event.pull_request.title, 'Design:')) ||
+      (github.event_name == 'pull_request_review' && 
+       github.event.review.state == 'changes_requested')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Code Review Agent
+        uses: cagataycali/strands-github-agent@main
+        with:
+          task: |
+            Perform comprehensive code review for PR #${{ github.event.pull_request.number }}
+            
+            Your role: Senior Code Reviewer & Security Specialist
+            
+            Review Tasks:
+            1. Analyze code quality, structure, and maintainability
+            2. Check for security vulnerabilities and best practices
+            3. Validate test coverage and quality
+            4. Review performance implications and optimizations
+            5. Ensure compliance with coding standards
+            6. Verify documentation completeness
+            7. Check for potential bugs and edge cases
+            8. Validate error handling and logging
+            
+            Code Review Criteria:
+            
+            **Code Quality:**
+            - Clean, readable, and maintainable code
+            - Proper naming conventions and structure
+            - SOLID principles and design patterns
+            - Code duplication and refactoring opportunities
+            - Complexity and cognitive load
+            
+            **Security:**
+            - Input validation and sanitization
+            - Authentication and authorization
+            - Data encryption and protection
+            - SQL injection and XSS prevention
+            - Secrets and credential management
+            
+            **Performance:**
+            - Algorithm efficiency and optimization
+            - Memory usage and resource management
+            - Database query optimization
+            - Caching strategies
+            - Scalability considerations
+            
+            **Testing:**
+            - Test coverage completeness (aim for >80%)
+            - Unit, integration, and end-to-end tests
+            - Edge cases and error scenarios
+            - Test quality and maintainability
+            - Mock usage and test isolation
+            
+            **Documentation:**
+            - Code comments and inline documentation
+            - API documentation completeness
+            - README and setup instructions
+            - Architecture and design decisions
+            
+            PR Details:
+            Title: ${{ github.event.pull_request.title }}
+            Author: ${{ github.event.pull_request.user.login }}
+            Files Changed: ${{ github.event.pull_request.changed_files }}
+            Additions: +${{ github.event.pull_request.additions }}
+            Deletions: -${{ github.event.pull_request.deletions }}
+            
+            Decision Options:
+            - APPROVE: Code meets all quality standards and is ready to merge
+            - REQUEST_CHANGES: Code has issues that must be addressed
+            - COMMENT: Code is acceptable but has suggestions for improvement
+          
+          system_prompt: |
+            You are a senior code reviewer with deep expertise in:
+            - Software engineering best practices and design patterns
+            - Security vulnerability assessment and prevention
+            - Performance optimization and scalability engineering
+            - Test-driven development and quality assurance
+            - Code maintainability and technical debt management
+            - Multiple programming languages and frameworks
+            
+            Your review philosophy:
+            - Security and reliability are paramount
+            - Code should be maintainable by future developers
+            - Performance matters, but readability comes first
+            - Tests are documentation and safety nets
+            - Constructive feedback helps developers grow
+            - Balance perfectionism with practical delivery needs
+            
+            Review standards:
+            - Zero tolerance for security vulnerabilities
+            - High standards for code quality and maintainability
+            - Comprehensive test coverage is non-negotiable
+            - Documentation should enable easy onboarding
+            - Performance implications should be considered
+            - Error handling should be robust and informative
+            
+            Provide specific, actionable feedback with:
+            - Clear explanations of issues and risks
+            - Concrete suggestions for improvement
+            - Code examples where helpful
+            - References to best practices and standards
+            - Positive recognition of good practices
+          
+          tools: "file_read,use_github,add_comment,get_pull_request,get_pull_request_files,get_pull_request_diff,create_and_submit_pull_request_review,python_repl,shell,current_time,think"
+          
+          provider: "bedrock"
+          model: "us.anthropic.claude-opus-4-20250514-v1:0"
+          max_tokens: "65536"
+          
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Security Analysis Agent
+        uses: cagataycali/strands-github-agent@main
+        with:
+          task: |
+            Perform security analysis on PR #${{ github.event.pull_request.number }}
+            
+            Your role: Security Specialist & Vulnerability Assessor
+            
+            Security Analysis Tasks:
+            1. Scan for common security vulnerabilities (OWASP Top 10)
+            2. Check for hardcoded secrets and credentials
+            3. Analyze input validation and sanitization
+            4. Review authentication and authorization logic
+            5. Check for SQL injection and XSS vulnerabilities
+            6. Validate encryption and data protection measures
+            7. Review error handling for information disclosure
+            8. Check dependencies for known vulnerabilities
+            
+            Focus Areas:
+            - Input validation and sanitization
+            - Authentication and session management
+            - Access control and authorization
+            - Cryptographic practices
+            - Error handling and logging
+            - Dependency security
+            - Configuration security
+            - Data protection and privacy
+            
+            Report any security concerns as high-priority comments.
+          
+          system_prompt: |
+            You are a cybersecurity expert specializing in:
+            - Application security and vulnerability assessment
+            - Secure coding practices and standards
+            - OWASP guidelines and security frameworks
+            - Penetration testing and security analysis
+            - Compliance and regulatory requirements
+            
+            Your security mindset:
+            - Assume attackers will find and exploit vulnerabilities
+            - Defense in depth is essential
+            - Security should be built in, not bolted on
+            - Every input is potentially malicious
+            - Fail securely and log appropriately
+            - Privacy and data protection are fundamental rights
+          
+          tools: "file_read,use_github,add_comment,get_pull_request_files,python_repl,shell,current_time,think"
+          
+          provider: "bedrock"
+          model: "us.anthropic.claude-sonnet-4-20250514-v1:0"
+          max_tokens: "32768"
+          
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
