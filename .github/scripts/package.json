@@ -1,0 +1,25 @@
+{
+  "name": "github-project-board-setup",
+  "version": "1.0.0",
+  "description": "Automated GitHub Project Board setup and configuration",
+  "main": "setup-project-board.js",
+  "scripts": {
+    "setup": "node setup-project-board.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "js-yaml": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "github",
+    "project-board",
+    "automation",
+    "kanban",
+    "workflow"
+  ],
+  "author": "Orchestration Agent",
+  "license": "MIT"
+}

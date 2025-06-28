@@ -2,11 +2,23 @@
 name: Code Review Agent
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    paths-ignore: ['specs/**', '.github/**', '*.md']
-  pull_request_review:
-    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to review'
+        required: true
+        type: string
+      review_focus:
+        description: 'Focus area for the review'
+        required: false
+        default: 'comprehensive'
+        type: choice
+        options:
+          - 'comprehensive'
+          - 'security'
+          - 'performance'
+          - 'maintainability'
+          - 'testing'
 
 permissions:
   actions: write
@@ -28,12 +40,6 @@ permissions:
 jobs:
   code-review:
     runs-on: ubuntu-latest
-    if: >
-      (github.event_name == 'pull_request' && 
-       github.event.pull_request.draft == false &&
-       !contains(github.event.pull_request.title, 'Design:')) ||
-      (github.event_name == 'pull_request_review' && 
-       github.event.review.state == 'changes_requested')
     
     steps:
       - name: Checkout repository
@@ -42,10 +48,11 @@ jobs:
           fetch-depth: 0
 
       - name: Code Review Agent
-        uses: jsamuel1/strands-github-agent@main
+        uses: ./
         with:
           task: |
-            Perform comprehensive code review for PR #${{ github.event.pull_request.number }}
+            Perform comprehensive code review for PR #${{ github.event.inputs.pr_number }}
+            Review Focus: ${{ github.event.inputs.review_focus }}
             
             Your role: Senior Code Reviewer & Security Specialist
             
@@ -96,11 +103,10 @@ jobs:
             - Architecture and design decisions
             
             PR Details:
-            Title: ${{ github.event.pull_request.title }}
-            Author: ${{ github.event.pull_request.user.login }}
-            Files Changed: ${{ github.event.pull_request.changed_files }}
-            Additions: +${{ github.event.pull_request.additions }}
-            Deletions: -${{ github.event.pull_request.deletions }}
+            PR Number: ${{ github.event.inputs.pr_number }}
+            Review Focus: ${{ github.event.inputs.review_focus }}
+            
+            Note: Retrieve PR details using GitHub API to get title, author, files changed, additions, deletions, etc.
             
             Decision Options:
             - APPROVE: Code meets all quality standards and is ready to merge
@@ -150,7 +156,6 @@ jobs:
 
   security-scan:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     
     steps:
       - name: Checkout repository
@@ -159,10 +164,10 @@ jobs:
           fetch-depth: 0
 
       - name: Security Analysis Agent
-        uses: jsamuel1/strands-github-agent@main
+        uses: ./
         with:
           task: |
-            Perform security analysis on PR #${{ github.event.pull_request.number }}
+            Perform security analysis on PR #${{ github.event.inputs.pr_number }}
             
             Your role: Security Specialist & Vulnerability Assessor
             

@@ -2,19 +2,26 @@
 name: Implementation Agent
 
 on:
-  pull_request:
-    types: [closed]
-    paths: ['specs/**']
   workflow_dispatch:
     inputs:
       spec_file:
-        description: 'Specification file to implement'
+        description: 'Specification file to implement (e.g., specs/123-feature-name.md)'
         required: true
         type: string
       issue_number:
         description: 'Related issue number'
         required: true
         type: string
+      priority:
+        description: 'Implementation priority'
+        required: false
+        default: 'normal'
+        type: choice
+        options:
+          - 'low'
+          - 'normal'
+          - 'high'
+          - 'urgent'
 
 permissions:
   actions: write
@@ -36,11 +43,6 @@ permissions:
 jobs:
   implement:
     runs-on: ubuntu-latest
-    if: >
-      (github.event_name == 'pull_request' && 
-       github.event.pull_request.merged == true &&
-       contains(github.event.pull_request.title, 'Design:')) ||
-      github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout repository
@@ -48,26 +50,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract spec info
+      - name: Set spec info
         id: spec_info
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "spec_file=${{ github.event.inputs.spec_file }}" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
-          else
-            # Extract from merged PR
-            spec_file=$(echo "${{ github.event.pull_request.head.ref }}" | sed 's/design\///')
-            issue_number=$(echo "$spec_file" | grep -o '^[0-9]*')
-            echo "spec_file=specs/${spec_file}.md" >> $GITHUB_OUTPUT
-            echo "issue_number=$issue_number" >> $GITHUB_OUTPUT
-          fi
+          echo "spec_file=${{ github.event.inputs.spec_file }}" >> $GITHUB_OUTPUT
+          echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          echo "priority=${{ github.event.inputs.priority }}" >> $GITHUB_OUTPUT
 
       - name: Implementation Agent
-        uses: jsamuel1/strands-github-agent@main
+        uses: ./
         with:
           task: |
             Implement the approved design specification: ${{ steps.spec_info.outputs.spec_file }}
             Related issue: #${{ steps.spec_info.outputs.issue_number }}
+            Priority: ${{ steps.spec_info.outputs.priority }}
             
             Your role: Senior Software Engineer & Implementation Specialist
             

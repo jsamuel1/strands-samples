@@ -1,198 +1,341 @@
-# Multi-Agent Design & Development Workflow
+# Automated Project Management Workflows
 
-This directory contains a four-agent workflow system that automates the entire software development lifecycle from issue analysis to code implementation.
+This repository uses an orchestrated approach to project management with AI agents that automatically manage the development workflow from issue creation to completion.
 
-## Workflow Overview
+## Workflow Architecture
+
+### 🎯 Orchestration Agent (00-orchestration-agent.yml)
+**The Master Controller** - This is the only workflow that triggers on GitHub events and runs hourly.
+
+**Responsibilities:**
+- Monitors all GitHub events (issues, PRs, comments, etc.)
+- **Integrates with GitHub Project Boards** to read WIP limits and current state
+- Manages project flow based on **actual project board configuration**
+- Triggers other agents based on project board capacity and state
+- Maintains Kanban flow optimization using project board metrics
+- Prevents bottlenecks and ensures steady progress through project board columns
+
+**Triggers:**
+- All GitHub events (issues, PRs, comments, reviews)
+- Hourly schedule (cron: '0 * * * *')
+- Manual dispatch with configuration options
+
+**Key Features:**
+- **Automatic Project Board Setup**: Creates and configures GitHub Project boards automatically
+- **Intelligent WIP Limits**: Calculates optimal WIP limits based on team size and repository activity
+- **Dynamic Configuration**: Continuously optimizes project board settings based on flow metrics
+- **Smart Automations**: Configures project board automations that enhance workflow efficiency
+- **Repository Analysis**: Analyzes repository activity to determine optimal configuration
+- **Flow Optimization**: Automatically moves work through project board columns
+- **Bottleneck Detection**: Identifies workflow blockages using project board analytics
+- **Priority Handling**: Supports urgent mode that bypasses project board WIP limits
+- **Agent Coordination**: Triggers appropriate agents based on project board capacity
+
+### 🎨 Design Agent (01-design-agent.yml)
+**The Solution Architect** - Creates comprehensive design specifications.
+
+**Triggered by:** Orchestration Agent when issues need design work
+**Input:** Issue number and priority level
+**Output:** Design specification saved to `specs/` directory
+
+**Responsibilities:**
+- Analyze issue requirements thoroughly
+- Create comprehensive design specifications
+- Consider security, scalability, and maintainability
+- Generate technical implementation approaches
+- Create pull requests with design documents
+
+### 📋 Design Review Agent (02-design-review-agent.yml)
+**The Technical Reviewer** - Reviews and approves design specifications.
+
+**Triggered by:** Orchestration Agent when design PRs need review
+**Input:** PR number and review type
+**Output:** Design review with approval/rejection decision
+
+**Responsibilities:**
+- Validate technical feasibility and architecture
+- Check security and compliance requirements
+- Assess resource requirements and timelines
+- Provide detailed feedback and recommendations
+- Approve or request changes to designs
+
+### 🔨 Implementation Agent (03-implementation-agent.yml)
+**The Senior Engineer** - Implements approved designs into working code.
+
+**Triggered by:** Orchestration Agent when designs are approved
+**Input:** Specification file path, issue number, and priority
+**Output:** Complete implementation with tests and documentation
+
+**Responsibilities:**
+- Generate all necessary code files
+- Create comprehensive unit and integration tests
+- Implement proper error handling and logging
+- Follow coding standards and best practices
+- Create pull requests with complete implementations
+
+### 🔍 Code Review Agent (04-code-review-agent.yml)
+**The Quality Guardian** - Reviews implementation code for quality and security.
+
+**Triggered by:** Orchestration Agent when implementation PRs are ready
+**Input:** PR number and review focus area
+**Output:** Comprehensive code review with security analysis
+
+**Responsibilities:**
+- Analyze code quality, structure, and maintainability
+- Check for security vulnerabilities and best practices
+- Validate test coverage and quality (target: >80%)
+- Review performance implications
+- Ensure compliance with coding standards
+
+## Project Stages & Flow (GitHub Project Board Integration)
 
 ```mermaid
-graph TD
-    A[GitHub Issue Created] --> B[01-design-agent.yml]
-    B --> C[Create Design Spec in specs/]
-    C --> D[Create PR for Design]
-    D --> E[02-design-review-agent.yml]
-    E --> F{Design Approved?}
-    F -->|Yes| G[Merge Design PR]
-    F -->|No| H[Comment on Issue]
-    G --> I[03-implementation-agent.yml]
-    I --> J[Code Implementation]
-    J --> K[Create Implementation PR]
-    K --> L[04-code-review-agent.yml]
-    L --> M{Code Approved?}
-    M -->|Yes| N[Merge Implementation]
-    M -->|No| O[Comment on PR]
-    H --> B
-    O --> I
+graph LR
+    A[📋 Backlog] --> B[🎨 Design]
+    B --> C[🔨 Implementation]
+    C --> D[🔍 Review]
+    D --> E[✅ Done]
+    
+    A -.->|WIP: From Project Board| A
+    B -.->|WIP: From Project Board| B
+    C -.->|WIP: From Project Board| C
+    D -.->|WIP: From Project Board| D
+    E -.->|Unlimited| E
+    
+    subgraph "GitHub Project Board"
+        PB[Project Board Columns]
+        PB --> WIP[WIP Limits Configuration]
+        WIP --> FLOW[Automated Flow Management]
+    end
 ```
 
-## Agents
+### Stage Definitions (Project Board Columns)
 
-### 1. Design Agent (`01-design-agent.yml`)
-**Triggers**: Issue opened, labeled with 'needs-design', or @design-agent mentioned
-**Purpose**: Analyzes issues and creates comprehensive design specifications
-**Model**: Claude Sonnet (balanced capability and cost)
-**Output**: Design specification in `specs/` directory + PR
+The orchestration agent automatically discovers and uses your GitHub Project board configuration:
 
-### 2. Design Review Agent (`02-design-review-agent.yml`)
-**Triggers**: PR opened/updated in `specs/` directory
-**Purpose**: Reviews design specifications for completeness and quality
-**Model**: Claude Opus (highest reasoning capability)
-**Output**: PR review with approval/changes requested
+1. **Backlog Column** (WIP: Set in Project Board)
+   - Issues ready for design work
+   - Properly labeled and categorized
+   - Clear requirements and acceptance criteria
+   - **WIP Limit**: Read from project board column settings
 
-### 3. Implementation Agent (`03-implementation-agent.yml`)
-**Triggers**: Design PR merged or manual dispatch
-**Purpose**: Implements approved designs with full code, tests, and documentation
-**Model**: Claude Sonnet (good for code generation)
-**Output**: Complete implementation + PR
+2. **Design Column** (WIP: Set in Project Board)
+   - Issues being designed or awaiting design approval
+   - Design specifications in progress
+   - Design reviews and iterations
+   - **WIP Limit**: Read from project board column settings
 
-### 4. Code Review Agent (`04-code-review-agent.yml`)
-**Triggers**: Implementation PR opened/updated
-**Purpose**: Reviews code quality, security, and compliance
-**Model**: Claude Opus (thorough analysis)
-**Output**: PR review with security scan results
+3. **Implementation Column** (WIP: Set in Project Board)
+   - Approved designs being coded
+   - Active development work
+   - Unit and integration testing
+   - **WIP Limit**: Read from project board column settings
 
-## Setup Requirements
+4. **Review Column** (WIP: Set in Project Board)
+   - Completed implementations under review
+   - Code quality and security analysis
+   - Feedback incorporation and approval
+   - **WIP Limit**: Read from project board column settings
 
-### 1. Repository Secrets
-Add these secrets to your GitHub repository:
+5. **Done Column** (Typically Unlimited)
+   - Merged and completed work
+   - All acceptance criteria met
+   - Ready for deployment
+   - **WIP Limit**: Usually unlimited (set in project board)
 
+## Configuration
+
+### GitHub Project Board Setup (Automatic Configuration)
+
+**🚀 The orchestration agent automatically sets up and configures your GitHub Project board:**
+
+#### Automatic Setup Process:
+
+1. **Repository Analysis**
+   - Analyzes contributor count and activity patterns
+   - Calculates issue velocity and PR frequency
+   - Determines optimal team size classification
+   - Assesses current workflow bottlenecks
+
+2. **Intelligent Project Board Creation**
+   - Creates project board with optimal column structure
+   - Calculates WIP limits based on team size and activity
+   - Configures custom fields for priority, effort, and type tracking
+   - Sets up automations for seamless workflow integration
+
+3. **Smart WIP Limit Calculation**
+   - **Backlog**: `team_size × 3 + 4` (scales with team size)
+   - **Design**: `max(1, team_size ÷ 3)` (roughly 1 designer per 3 developers)
+   - **Implementation**: `max(2, team_size ÷ 2)` (half the team can implement simultaneously)
+   - **Review**: `max(2, team_size ÷ 3)` (review capacity based on team size)
+   - **Done**: Unlimited
+
+4. **Automated Project Board Optimizations**
+   - Continuously monitors flow metrics
+   - Adjusts WIP limits based on actual performance
+   - Updates automations to improve workflow efficiency
+   - Adds missing custom fields and configurations
+
+#### Manual Setup Triggers:
+
+```bash
+# Force project board setup/optimization
+gh workflow run 00-orchestration-agent.yml -f setup_project_board=true
+
+# Setup with specific team size
+gh workflow run 00-orchestration-agent.yml -f setup_project_board=true -f team_size="medium (4-8)"
+
+# Auto-calculate WIP limits based on repository analysis
+gh workflow run 00-orchestration-agent.yml -f wip_limit=auto
 ```
-AWS_ROLE_ARN          # AWS IAM role for Bedrock access (optional)
-GITHUB_TOKEN          # GitHub token (automatically provided)
-LANGFUSE_PUBLIC_KEY   # For LLM observability (optional)
-LANGFUSE_SECRET_KEY   # For LLM observability (optional)
-SLACK_BOT_TOKEN       # For notifications (optional)
-```
 
-### 2. Repository Structure
-Ensure these directories exist:
-```
-specs/                # Design specifications
-├── templates/        # Specification templates
-└── README.md
+#### Project Board Features Automatically Configured:
 
-src/                  # Implementation code (created by agents)
-```
+- **📋 Backlog Column**: Issues ready for design work
+- **🎨 Design Column**: Issues being designed or awaiting approval  
+- **🔨 Implementation Column**: Approved designs being implemented
+- **🔍 Review Column**: Completed implementations under review
+- **✅ Done Column**: Completed and merged work
 
-### 3. Branch Protection Rules
-Configure branch protection for:
-- `main` branch: Require PR reviews
-- `design/*` branches: Require design review approval
-- `feature/*` branches: Require code review approval
+- **Custom Fields**:
+  - Priority (🚨 Urgent, ⚡ High, 📋 Normal, 📝 Low)
+  - Effort (Story points or hours)
+  - Type (✨ Feature, 🐛 Bug, 🔧 Enhancement, 🧹 Chore)
+  - Sprint (Current sprint identifier)
 
-### 4. Issue Templates
-Create issue templates in `.github/ISSUE_TEMPLATE/` for:
-- Feature requests
-- Bug reports
-- Enhancements
-- Security issues
+- **Smart Automations**:
+  - Auto-add new issues to Backlog
+  - Auto-move items based on PR status
+  - Auto-assign based on column and expertise
+  - Stale item detection and alerts
 
-## Usage Examples
-
-### Creating a Feature Request
-1. Create a GitHub issue with detailed requirements
-2. Add label `needs-design` or mention `@design-agent`
-3. Design Agent will analyze and create specification
-4. Design Review Agent will review the specification
-5. Once approved, Implementation Agent will create the code
-6. Code Review Agent will review the implementation
+### Project Configuration (.github/project-config.yml)
+Provides fallback settings and automation rules when project board is not available.
 
 ### Manual Triggers
-You can manually trigger agents using workflow dispatch:
-- Implementation Agent: Specify spec file and issue number
-- All agents support manual execution for testing
+All agents can be manually triggered via workflow_dispatch:
 
-## Configuration Options
+```bash
+# Trigger design for specific issue
+gh workflow run 01-design-agent.yml -f issue_number=123 -f priority=high
 
-### Model Selection
-Each agent uses different models optimized for their tasks:
-- **Design Agent**: Claude Sonnet (balanced)
-- **Design Review Agent**: Claude Opus (thorough)
-- **Implementation Agent**: Claude Sonnet (code generation)
-- **Code Review Agent**: Claude Opus (analysis)
+# Trigger implementation for approved design
+gh workflow run 03-implementation-agent.yml -f spec_file=specs/123-feature.md -f issue_number=123
 
-### Tool Configuration
-Agents have access to different tool sets:
-- **Design Agent**: GitHub, file operations, thinking
-- **Design Review Agent**: GitHub, PR operations, analysis
-- **Implementation Agent**: Full development stack
-- **Code Review Agent**: Analysis, security scanning
+# Trigger code review for PR
+gh workflow run 04-code-review-agent.yml -f pr_number=456 -f review_focus=security
+```
 
-### Customization
-Modify the workflow files to:
-- Change model providers (OpenAI, Anthropic, etc.)
-- Adjust system prompts for your domain
-- Add custom tools or integrations
-- Modify trigger conditions
-- Add notification channels
+### Orchestration Controls
+The orchestration agent supports several control parameters:
 
-## Monitoring & Observability
+- **Auto WIP Limits**: Automatically calculate optimal WIP limits based on repository analysis
+- **Project Board Setup**: Force creation or optimization of project board configuration
+- **Team Size Override**: Specify team size for more accurate WIP limit calculation
+- **Urgent Mode**: Bypass project board WIP limits for critical work
+- **Focus Stage**: Prioritize specific project board columns
 
-### GitHub Actions Logs
-Monitor workflow execution in the Actions tab
+### Advanced Configuration Options
 
-### LLM Observability (Optional)
-Configure Langfuse for detailed LLM performance tracking:
-- Token usage and costs
-- Response quality metrics
-- Performance analytics
-- Error tracking
+```bash
+# Complete project board setup with team size specification
+gh workflow run 00-orchestration-agent.yml \
+  -f setup_project_board=true \
+  -f team_size="large (9+)" \
+  -f wip_limit=auto
 
-### Notifications (Optional)
-Configure Slack integration for:
-- Design approvals/rejections
-- Implementation completions
-- Code review results
-- Security alerts
+# Optimize existing project board
+gh workflow run 00-orchestration-agent.yml \
+  -f setup_project_board=true
+
+# Emergency mode with bypassed limits
+gh workflow run 00-orchestration-agent.yml \
+  -f urgent_mode=true \
+  -f focus_stage=implementation
+```
+
+## Monitoring & Metrics
+
+The orchestration agent tracks key metrics using **GitHub Project board data**:
+
+- **Cycle Time**: Time from backlog to completion (tracked via project board card movement)
+- **Lead Time**: Time from design to implementation (tracked via project board column transitions)
+- **Throughput**: Completion rate (tracked via project board done column)
+- **WIP Efficiency**: Utilization of project board column capacity
+- **Flow Efficiency**: Time spent in active work vs waiting (project board analytics)
+
+### Project Board Analytics Integration
+
+The system provides enhanced metrics by integrating with GitHub Project board data:
+
+- **Column Utilization**: How full each project board column is relative to its WIP limit
+- **Flow Rate**: Items moving through project board columns per time period
+- **Bottleneck Detection**: Columns that consistently hit WIP limits
+- **Starvation Alerts**: Empty columns that should have work flowing to them
+- **Capacity Planning**: Recommendations for adjusting project board WIP limits
 
 ## Best Practices
 
-### Issue Creation
-- Use detailed issue descriptions
-- Include acceptance criteria
-- Add relevant labels
-- Provide context and examples
+### For Contributors
+1. **Clear Issue Descriptions**: Provide detailed requirements and acceptance criteria
+2. **Project Board Usage**: Add issues to the project board for automatic management
+3. **Priority Setting**: Mark urgent items appropriately (use priority indicators in project board)
+4. **Feedback Loop**: Respond to agent comments and reviews promptly
 
-### Design Reviews
-- Review specifications thoroughly
-- Provide constructive feedback
-- Consider long-term implications
-- Validate security requirements
-
-### Code Reviews
-- Focus on maintainability
-- Verify test coverage
-- Check security implications
-- Validate performance impact
+### For Maintainers
+1. **Automatic Setup**: Let the orchestration agent create and configure the project board automatically
+2. **Monitor Flow**: Check orchestration agent reports and project board analytics regularly
+3. **Trust the Algorithm**: The agent continuously optimizes WIP limits based on actual performance
+4. **Review Metrics**: Analyze cycle time and throughput trends from project board data
+5. **Handle Escalations**: Address bottlenecks and urgent items quickly
+6. **Customize as Needed**: Override automatic settings when specific business needs require it
 
 ## Troubleshooting
 
 ### Common Issues
-1. **Agent not triggering**: Check trigger conditions and labels
-2. **Permission errors**: Verify GitHub token permissions
-3. **Model errors**: Check AWS role configuration
-4. **File conflicts**: Ensure proper branch management
 
-### Debug Mode
-Enable debug logging by setting `STRANDS_DEBUG=1` in workflow environment
+1. **WIP Limits Exceeded**
+   - Check project board column capacity and current item count
+   - Consider temporarily increasing project board WIP limits
+   - Focus on completing current work before starting new
 
-### Manual Intervention
-If agents get stuck:
-1. Check workflow logs for errors
-2. Manually trigger next step using workflow dispatch
-3. Create manual PRs if needed
-4. Adjust system prompts for better results
+2. **Project Board Setup Issues**
+   - Run orchestration agent with `setup_project_board=true` to force reconfiguration
+   - Check repository permissions for project board creation and management
+   - Verify GitHub token has necessary scopes for project board operations
+   - Review orchestration agent logs for specific setup errors
 
-## Security Considerations
+3. **Stage Starvation**
+   - Ensure upstream project board columns have work ready
+   - Check for blocking dependencies in project board
+   - Consider prioritizing upstream work
 
-- All code is reviewed by security-focused agents
-- Secrets are managed through GitHub Secrets
-- AWS roles use least-privilege access
-- All changes go through PR review process
-- Security scanning is automated
+4. **Agent Failures**
+   - Check workflow logs for error details
+   - Verify AWS credentials and permissions
+   - Retry failed workflows manually if needed
 
-## Cost Optimization
+### Emergency Procedures
 
-- Different models used based on task complexity
-- Token limits set to prevent runaway costs
-- Caching and reuse where possible
-- Monitor usage through Langfuse integration
+1. **Urgent Work**: Use urgent mode to bypass project board WIP limits
+2. **Project Board Issues**: Agent automatically recreates or fixes project board configuration
+3. **System Issues**: Disable orchestration and run agents manually
+4. **Capacity Changes**: Agent automatically adjusts WIP limits based on team changes
+
+## Security & Permissions
+
+All workflows require:
+- `contents: write` - For creating files and commits
+- `issues: write` - For managing issues and labels
+- `pull-requests: write` - For creating and managing PRs
+- `actions: write` - For triggering other workflows
+
+AWS credentials are required for Bedrock model access via OIDC role assumption.
+
+## Future Enhancements
+
+- **Slack Integration**: Real-time notifications and status updates
+- **Dashboard**: Visual project health and metrics display
+- **Advanced Analytics**: Predictive bottleneck detection
+- **Custom Rules**: Configurable automation rules per project
+- **Multi-Repository**: Support for cross-repository workflows

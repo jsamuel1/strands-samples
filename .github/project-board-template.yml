@@ -1,0 +1,292 @@
+# GitHub Project Board Template Configuration
+# This template defines the optimal project board structure for the orchestration agent
+
+project_board_template:
+  name: "Development Workflow"
+  description: "Automated Kanban board managed by orchestration agent"
+  visibility: "REPOSITORY"  # REPOSITORY, ORGANIZATION, or PUBLIC
+  
+  # Column definitions in order
+  columns:
+    - name: "📋 Backlog"
+      description: "Issues ready for design work"
+      purpose: "backlog"
+      wip_limit_formula: "team_size * 3 + 4"  # Scales with team size
+      min_wip_limit: 5
+      max_wip_limit: 20
+      automation_rules:
+        - trigger: "issue_opened"
+          action: "add_to_column"
+          conditions:
+            - "not_pull_request"
+            - "not_already_in_project"
+        - trigger: "issue_reopened"
+          action: "add_to_column"
+    
+    - name: "🎨 Design"
+      description: "Issues being designed or awaiting design approval"
+      purpose: "design"
+      wip_limit_formula: "max(1, team_size / 3)"  # Roughly 1 designer per 3 developers
+      min_wip_limit: 1
+      max_wip_limit: 4
+      automation_rules:
+        - trigger: "issue_labeled"
+          action: "move_to_column"
+          conditions:
+            - "label_contains: needs-design"
+        - trigger: "pr_opened"
+          action: "move_to_column"
+          conditions:
+            - "pr_targets_specs_directory"
+    
+    - name: "🔨 Implementation"
+      description: "Approved designs being implemented"
+      purpose: "implementation"
+      wip_limit_formula: "max(2, team_size / 2)"  # Half the team can implement simultaneously
+      min_wip_limit: 2
+      max_wip_limit: 8
+      automation_rules:
+        - trigger: "issue_labeled"
+          action: "move_to_column"
+          conditions:
+            - "label_contains: needs-implementation"
+        - trigger: "pr_opened"
+          action: "move_to_column"
+          conditions:
+            - "pr_contains_implementation_code"
+            - "not_pr_targets_specs_directory"
+    
+    - name: "🔍 Review"
+      description: "Completed implementations under review"
+      purpose: "review"
+      wip_limit_formula: "max(2, team_size / 3)"  # Review capacity
+      min_wip_limit: 2
+      max_wip_limit: 6
+      automation_rules:
+        - trigger: "pr_opened"
+          action: "move_to_column"
+          conditions:
+            - "pr_ready_for_review"
+            - "not_draft_pr"
+        - trigger: "pr_review_requested"
+          action: "move_to_column"
+    
+    - name: "✅ Done"
+      description: "Completed and merged work"
+      purpose: "done"
+      wip_limit: null  # Unlimited
+      automation_rules:
+        - trigger: "issue_closed"
+          action: "move_to_column"
+          conditions:
+            - "issue_completed"
+        - trigger: "pr_merged"
+          action: "move_to_column"
+
+  # Custom fields for enhanced tracking
+  custom_fields:
+    - name: "Priority"
+      type: "single_select"
+      options:
+        - name: "🚨 Urgent"
+          description: "Critical issues that bypass WIP limits"
+          color: "red"
+        - name: "⚡ High"
+          description: "High priority items"
+          color: "orange"
+        - name: "📋 Normal"
+          description: "Standard priority items"
+          color: "blue"
+        - name: "📝 Low"
+          description: "Low priority items"
+          color: "gray"
+    
+    - name: "Effort"
+      type: "number"
+      description: "Story points or estimated hours"
+      
+    - name: "Type"
+      type: "single_select"
+      options:
+        - name: "✨ Feature"
+          color: "green"
+        - name: "🐛 Bug"
+          color: "red"
+        - name: "🔧 Enhancement"
+          color: "blue"
+        - name: "🧹 Chore"
+          color: "gray"
+    
+    - name: "Sprint"
+      type: "text"
+      description: "Current sprint identifier"
+    
+    - name: "Assignee Team"
+      type: "single_select"
+      options:
+        - name: "Design Team"
+          color: "purple"
+        - name: "Development Team"
+          color: "green"
+        - name: "Review Team"
+          color: "orange"
+
+  # Team size-based WIP limit presets
+  wip_presets:
+    small_team:  # 1-3 developers
+      backlog: 8
+      design: 1
+      implementation: 2
+      review: 1
+      done: null
+    
+    medium_team:  # 4-8 developers
+      backlog: 12
+      design: 2
+      implementation: 4
+      review: 2
+      done: null
+    
+    large_team:  # 9+ developers
+      backlog: 20
+      design: 3
+      implementation: 6
+      review: 3
+      done: null
+
+  # Advanced automation configurations
+  advanced_automations:
+    # Auto-assignment based on column
+    auto_assign:
+      design_column:
+        - assign_to: "design_team_members"
+          condition: "item_moved_to_design"
+      implementation_column:
+        - assign_to: "available_developers"
+          condition: "item_moved_to_implementation"
+          strategy: "round_robin"
+      review_column:
+        - assign_to: "code_reviewers"
+          condition: "pr_ready_for_review"
+          strategy: "expertise_based"
+    
+    # Auto-labeling based on project board state
+    auto_label:
+      - trigger: "item_moved_to_design"
+        action: "add_label"
+        label: "in-design"
+      - trigger: "item_moved_to_implementation"
+        action: "add_label"
+        label: "in-implementation"
+      - trigger: "item_moved_to_review"
+        action: "add_label"
+        label: "in-review"
+      - trigger: "item_moved_to_done"
+        action: "add_label"
+        label: "completed"
+    
+    # Stale item detection and alerts
+    stale_detection:
+      design_column:
+        threshold_days: 7
+        action: "add_comment"
+        message: "This design task has been in progress for over a week. Please provide a status update."
+      implementation_column:
+        threshold_days: 10
+        action: "add_label"
+        label: "stale-implementation"
+      review_column:
+        threshold_days: 5
+        action: "request_review_urgently"
+
+  # Integration settings
+  integrations:
+    # Slack notifications (if configured)
+    slack:
+      enabled: false
+      channels:
+        wip_alerts: "#dev-alerts"
+        flow_metrics: "#dev-metrics"
+        bottlenecks: "#dev-escalation"
+    
+    # Email notifications
+    email:
+      enabled: true
+      recipients:
+        wip_exceeded: ["team-lead@company.com"]
+        bottleneck_detected: ["project-manager@company.com"]
+    
+    # Webhook integrations
+    webhooks:
+      flow_metrics:
+        url: "https://api.company.com/project-metrics"
+        events: ["item_moved", "wip_limit_exceeded", "bottleneck_detected"]
+
+  # Metrics and reporting configuration
+  metrics:
+    cycle_time:
+      enabled: true
+      target_days: 7
+      warning_days: 10
+      critical_days: 14
+    
+    lead_time:
+      enabled: true
+      target_days: 3
+      warning_days: 5
+      critical_days: 7
+    
+    throughput:
+      enabled: true
+      target_items_per_week: 2
+      minimum_items_per_week: 1
+    
+    wip_efficiency:
+      enabled: true
+      target_percentage: 80
+      minimum_percentage: 60
+    
+    flow_efficiency:
+      enabled: true
+      target_percentage: 70
+      minimum_percentage: 50
+
+# Repository analysis for intelligent defaults
+repository_analysis:
+  # Factors to consider when setting up project board
+  factors:
+    - contributor_count: "Number of active contributors"
+    - issue_velocity: "Average issues created per week"
+    - pr_frequency: "Average PRs created per week"
+    - review_time: "Average time for PR reviews"
+    - merge_frequency: "Average PRs merged per week"
+    - repository_size: "Lines of code and complexity"
+    - activity_pattern: "Peak activity times and days"
+  
+  # Automatic team size detection
+  team_size_detection:
+    small_indicators:
+      - "contributor_count <= 3"
+      - "pr_frequency <= 5 per week"
+      - "issue_velocity <= 10 per week"
+    
+    medium_indicators:
+      - "contributor_count 4-8"
+      - "pr_frequency 6-15 per week"
+      - "issue_velocity 11-25 per week"
+    
+    large_indicators:
+      - "contributor_count >= 9"
+      - "pr_frequency >= 16 per week"
+      - "issue_velocity >= 26 per week"
+
+# Setup validation checklist
+validation_checklist:
+  - project_board_created: "Project board exists and is linked to repository"
+  - columns_configured: "All required columns are present with correct names"
+  - wip_limits_set: "WIP limits are configured for all columns except Done"
+  - automations_enabled: "Key automations are configured and active"
+  - custom_fields_added: "Priority, Effort, Type, and Sprint fields are available"
+  - permissions_correct: "Orchestration agent has necessary permissions"
+  - initial_items_added: "At least one issue is added to test the setup"
+  - flow_tested: "Items can move between columns correctly"

@@ -2,11 +2,22 @@
 name: Design Review Agent
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    paths: ['specs/**']
-  pull_request_review:
-    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull request number to review'
+        required: true
+        type: string
+      review_type:
+        description: 'Type of review to perform'
+        required: false
+        default: 'comprehensive'
+        type: choice
+        options:
+          - 'comprehensive'
+          - 'security-focused'
+          - 'architecture-focused'
+          - 'quick-review'
 
 permissions:
   actions: write
@@ -28,11 +39,6 @@ permissions:
 jobs:
   design-review:
     runs-on: ubuntu-latest
-    if: >
-      (github.event_name == 'pull_request' && 
-       github.event.pull_request.draft == false) ||
-      (github.event_name == 'pull_request_review' && 
-       github.event.review.state == 'changes_requested')
     
     steps:
       - name: Checkout repository
@@ -41,10 +47,11 @@ jobs:
           fetch-depth: 0
 
       - name: Design Review Agent
-        uses: jsamuel1/strands-github-agent@main
+        uses: ./
         with:
           task: |
-            Review design specification in PR #${{ github.event.pull_request.number }}
+            Review design specification in PR #${{ github.event.inputs.pr_number }}
+            Review Type: ${{ github.event.inputs.review_type }}
             
             Your role: Senior Design Reviewer & Technical Lead
             
@@ -67,9 +74,10 @@ jobs:
             - Compliance with organizational standards
             
             PR Details:
-            Title: ${{ github.event.pull_request.title }}
-            Author: ${{ github.event.pull_request.user.login }}
-            Files Changed: ${{ github.event.pull_request.changed_files }}
+            PR Number: ${{ github.event.inputs.pr_number }}
+            Review Type: ${{ github.event.inputs.review_type }}
+            
+            Note: Retrieve PR details using GitHub API to get title, author, files changed, etc.
             
             Decision Options:
             - APPROVE: Design is ready for implementation

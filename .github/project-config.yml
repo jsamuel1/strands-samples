@@ -1,0 +1,247 @@
+# Project Configuration for Orchestration Agent
+# This file defines the project workflow stages, automation rules, and fallback settings
+# Primary configuration source: GitHub Project Board (this file provides fallbacks)
+
+project:
+  name: "Strands Agents Samples"
+  description: "Automated project management with Kanban flow optimization using GitHub Project Boards"
+  
+  # Project Board Integration
+  project_board:
+    # The orchestration agent will automatically discover and use the GitHub Project board
+    # associated with this repository. If multiple projects exist, it will use the first active one.
+    auto_discover: true
+    
+    # Fallback project board settings (used if no project board is configured)
+    fallback_enabled: true
+    
+    # Column mapping - maps project board columns to workflow stages
+    # The agent will attempt to auto-detect these based on common naming patterns
+    column_mapping:
+      backlog: ["Backlog", "To Do", "Todo", "New", "Triage"]
+      design: ["Design", "In Design", "Designing", "Planning", "Analysis"]
+      implementation: ["Implementation", "In Progress", "Development", "Coding", "Building"]
+      review: ["Review", "In Review", "Testing", "QA", "Code Review"]
+      done: ["Done", "Completed", "Closed", "Merged", "Finished"]
+    
+    # WIP limit detection patterns
+    # The agent will look for these patterns in column names or descriptions
+    wip_patterns:
+      - "WIP: {number}"
+      - "Limit: {number}"
+      - "Max: {number}"
+      - "({number})"
+      - "[{number}]"
+  
+  # Fallback WIP limits (used when project board doesn't specify limits)
+  fallback_wip_limits:
+    backlog: 10        # Maximum items in backlog ready for design
+    design: 2          # Maximum items being designed
+    implementation: 2  # Maximum items being implemented
+    review: 2          # Maximum items under review
+    done: unlimited    # No limit on completed items
+  
+  # Stage definitions and criteria (used for validation and automation)
+  stages:
+    backlog:
+      description: "Issues ready for design work"
+      entry_criteria:
+        - Issue is properly labeled and categorized
+        - Requirements are clear and actionable
+        - Issue has been triaged and prioritized
+      exit_criteria:
+        - Issue is moved to design column on project board
+        - Design agent has been triggered
+      labels: ["backlog", "ready-for-design"]
+      
+    design:
+      description: "Issues being designed or awaiting design approval"
+      entry_criteria:
+        - Issue has clear requirements
+        - Design work has been assigned
+        - Item is in design column on project board
+      exit_criteria:
+        - Design specification is complete
+        - Design has been reviewed and approved
+        - PR with design spec has been merged
+        - Item moved to implementation column
+      labels: ["needs-design", "in-design", "design-review"]
+      
+    implementation:
+      description: "Approved designs being implemented"
+      entry_criteria:
+        - Design specification exists and is approved
+        - Implementation work has been assigned
+        - Item is in implementation column on project board
+      exit_criteria:
+        - Implementation is complete
+        - All tests are passing
+        - PR is ready for code review
+        - Item moved to review column
+      labels: ["needs-implementation", "in-implementation"]
+      
+    review:
+      description: "Completed implementations under review"
+      entry_criteria:
+        - Implementation PR is open
+        - All automated checks are passing
+        - Item is in review column on project board
+      exit_criteria:
+        - Code review is complete and approved
+        - All feedback has been addressed
+        - PR is ready to merge
+        - Item moved to done column
+      labels: ["needs-review", "in-review"]
+      
+    done:
+      description: "Completed and merged work"
+      entry_criteria:
+        - PR has been merged
+        - All acceptance criteria met
+        - Item is in done column on project board
+      labels: ["done", "completed"]
+
+  # Priority levels and handling
+  priorities:
+    urgent:
+      description: "Critical issues that bypass WIP limits"
+      wip_bypass: true
+      max_concurrent: 1
+      labels: ["urgent", "critical", "hotfix"]
+      project_board_indicators: ["🚨", "URGENT", "CRITICAL", "P0"]
+      
+    high:
+      description: "High priority items"
+      wip_multiplier: 1.5  # Can exceed WIP limit by 50%
+      labels: ["high-priority", "important"]
+      project_board_indicators: ["⚡", "HIGH", "P1"]
+      
+    normal:
+      description: "Standard priority items"
+      labels: ["normal", "enhancement", "feature"]
+      project_board_indicators: ["P2", "NORMAL"]
+      
+    low:
+      description: "Low priority items"
+      labels: ["low-priority", "nice-to-have", "backlog"]
+      project_board_indicators: ["P3", "LOW"]
+
+  # Automation rules
+  automation:
+    # Project board integration settings
+    project_board_sync:
+      enabled: true
+      sync_frequency: "on_event"  # or "hourly", "daily"
+      auto_create_cards: true     # Create project board cards for new issues
+      auto_move_cards: true       # Move cards based on workflow progress
+      sync_labels: true           # Sync labels with project board status
+      
+    # Automatically progress items when conditions are met
+    auto_progress:
+      enabled: true
+      conditions:
+        - project_board_column_below_wip_limit: true
+        - previous_column_has_items: true
+        - no_blocking_issues: true
+    
+    # Automatically trigger agents based on project board state
+    auto_trigger:
+      design_agent:
+        - when: "issue_moved_to_design_column"
+        - when: "design_column_below_wip_limit"
+      
+      implementation_agent:
+        - when: "design_pr_merged_and_implementation_column_has_capacity"
+        - when: "implementation_column_below_wip_limit"
+      
+      review_agent:
+        - when: "implementation_pr_opened_and_review_column_has_capacity"
+        - when: "review_column_below_wip_limit"
+    
+    # Health checks and alerts
+    health_checks:
+      - name: "project_board_wip_limit_exceeded"
+        condition: "column_item_count > column_wip_limit"
+        action: "alert_and_block_new_work"
+      
+      - name: "project_board_column_starvation"
+        condition: "column_empty_for > 24h"
+        action: "prioritize_upstream_work"
+      
+      - name: "project_board_bottleneck_detection"
+        condition: "column_at_wip_limit_for > 48h"
+        action: "analyze_and_alert"
+      
+      - name: "project_board_sync_failure"
+        condition: "project_board_api_error"
+        action: "fallback_to_label_based_workflow"
+
+  # Metrics and reporting (enhanced with project board data)
+  metrics:
+    cycle_time:
+      target: "7 days"  # Target time from backlog to done
+      warning: "10 days"
+      critical: "14 days"
+      source: "project_board_card_movement"
+    
+    lead_time:
+      target: "3 days"  # Target time from design to implementation
+      warning: "5 days"
+      critical: "7 days"
+      source: "project_board_column_transitions"
+    
+    throughput:
+      target: "2 items/week"  # Target completion rate
+      minimum: "1 item/week"
+      source: "project_board_done_column"
+    
+    wip_efficiency:
+      target: "80%"  # Target WIP utilization
+      minimum: "60%"
+      source: "project_board_column_capacity"
+    
+    flow_efficiency:
+      target: "70%"  # Time spent in active work vs waiting
+      minimum: "50%"
+      source: "project_board_column_time_tracking"
+
+  # Team configuration
+  team:
+    capacity:
+      # These will be overridden by project board WIP limits when available
+      design: 2      # Number of concurrent design tasks
+      implementation: 2  # Number of concurrent implementation tasks
+      review: 2      # Number of concurrent review tasks
+    
+    working_hours:
+      timezone: "UTC"
+      start: "09:00"
+      end: "17:00"
+      days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    
+    escalation:
+      wip_exceeded: ["@team-lead"]
+      bottleneck: ["@project-manager"]
+      urgent_items: ["@on-call"]
+      project_board_sync_issues: ["@devops-team"]
+
+# GitHub Project Board Setup Instructions
+setup_instructions: |
+  To fully utilize the orchestration agent with project board integration:
+  
+  1. Create a GitHub Project (v2) for this repository
+  2. Set up columns for each workflow stage:
+     - Backlog (WIP: 10)
+     - Design (WIP: 2) 
+     - Implementation (WIP: 2)
+     - Review (WIP: 2)
+     - Done (No limit)
+  
+  3. Configure WIP limits for each column in the project board settings
+  4. Add issues to the project board - they will be automatically managed
+  5. The orchestration agent will read these settings and manage flow accordingly
+  
+  Column WIP Limit Configuration:
+  - In project board settings, set "Work in progress limit" for each column
+  - Use column descriptions to specify limits if needed (e.g., "WIP: 3")
+  - The agent will automatically detect and respect these limits
