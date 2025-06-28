@@ -324,13 +324,124 @@ The system provides enhanced metrics by integrating with GitHub Project board da
 
 ## Security & Permissions
 
-All workflows require:
+### GitHub Permissions
+
+All workflows require the following GitHub permissions:
 - `contents: write` - For creating files and commits
 - `issues: write` - For managing issues and labels
 - `pull-requests: write` - For creating and managing PRs
 - `actions: write` - For triggering other workflows
+- `id-token: write` - **Required for OIDC authentication with AWS**
 
-AWS credentials are required for Bedrock model access via OIDC role assumption.
+### AWS Authentication Setup
+
+The workflows use **OpenID Connect (OIDC)** for secure authentication with AWS Bedrock services.
+
+#### Prerequisites
+
+1. **AWS IAM Role with OIDC Trust Policy**
+   
+   Create an IAM role in your AWS account with the following trust policy:
+   
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+         },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+           },
+           "StringLike": {
+             "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_ORG/YOUR_REPO:*"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+2. **IAM Role Permissions**
+   
+   Attach a policy to the role with Bedrock access permissions:
+   
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "bedrock:InvokeModel",
+           "bedrock:InvokeModelWithResponseStream"
+         ],
+         "Resource": [
+           "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-*"
+         ]
+       }
+     ]
+   }
+   ```
+
+3. **GitHub OIDC Identity Provider**
+   
+   If not already configured, add the GitHub OIDC identity provider to your AWS account:
+   - **Provider URL**: `https://token.actions.githubusercontent.com`
+   - **Audience**: `sts.amazonaws.com`
+   - **Thumbprint**: `6938fd4d98bab03faadb97b34396831e3780aea1`
+
+#### Repository Secrets Configuration
+
+Add the following secret to your GitHub repository settings:
+
+- **`AWS_ROLE_ARN`**: The ARN of the IAM role created above
+  - Example: `arn:aws:iam::123456789012:role/GitHubActionsRole`
+
+#### AWS Region Configuration
+
+The workflows are configured to use **`us-east-1`** region, which matches the Bedrock model region (`us.anthropic.claude-sonnet-4-20250514-v1:0`).
+
+If you need to use a different region:
+1. Update the `aws-region` parameter in the workflow files
+2. Ensure the Bedrock model is available in your chosen region
+3. Update the IAM policy resource ARNs to match your region
+
+#### Authentication Flow
+
+1. GitHub Actions generates an OIDC token
+2. The `aws-actions/configure-aws-credentials@v4` action exchanges the token for AWS credentials
+3. The assumed role provides access to Bedrock services
+4. The AI agents can now invoke Bedrock models securely
+
+#### Troubleshooting Authentication
+
+**Common Error**: `Credentials could not be loaded, please check your action inputs`
+
+**Solutions**:
+1. Verify the `AWS_ROLE_ARN` secret is correctly set
+2. Check that the IAM role trust policy allows your repository
+3. Ensure the `id-token: write` permission is present in workflow files
+4. Verify the OIDC identity provider is configured in AWS
+5. Check that the IAM role has the necessary Bedrock permissions
+
+**Testing Authentication**:
+```bash
+# Manually trigger the orchestration workflow to test authentication
+gh workflow run 00-orchestration-agent.yml
+```
+
+#### Security Best Practices
+
+- **Least Privilege**: The IAM role only has permissions for required Bedrock operations
+- **Repository Scoping**: The trust policy restricts access to your specific repository
+- **No Long-term Credentials**: OIDC tokens are short-lived and automatically rotated
+- **Audit Trail**: All AWS API calls are logged in CloudTrail
+- **Regional Restrictions**: Bedrock access is limited to the specified region
 
 ## Future Enhancements
 
